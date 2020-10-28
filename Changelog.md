@@ -7,6 +7,8 @@ Compiler Features:
 
 
 Bugfixes:
+ * Control Flow Graph: Take internal calls to functions that always revert into account.
+
 
 
 ### 0.8.4 (2021-04-21)

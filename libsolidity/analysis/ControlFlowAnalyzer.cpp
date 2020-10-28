@@ -34,16 +34,50 @@ bool ControlFlowAnalyzer::analyze(ASTNode const& _astRoot)
 
 bool ControlFlowAnalyzer::visit(FunctionDefinition const& _function)
 {
-	if (_function.isImplemented())
-	{
-		auto const& functionFlow = m_cfg.functionFlow(_function);
-		checkUninitializedAccess(functionFlow.entry, functionFlow.exit, _function.body().statements().empty());
-		checkUnreachable(functionFlow.entry, functionFlow.exit, functionFlow.revert, functionFlow.transactionReturn);
-	}
+	if (_function.isFree())
+		analyze(_function);
+
 	return false;
 }
 
-void ControlFlowAnalyzer::checkUninitializedAccess(CFGNode const* _entry, CFGNode const* _exit, bool _emptyBody) const
+void ControlFlowAnalyzer::analyze(FunctionDefinition const& _function, ContractDefinition const* _contract)
+{
+	m_functionReverts.clear();
+
+	if (!_function.isImplemented())
+		return;
+
+	auto const& funcFlow = m_cfg.functionFlow(_function, _contract);
+	checkUninitializedAccess(
+		funcFlow.entry,
+		funcFlow.exit,
+		_function.body().statements().empty(),
+		_function,
+		_contract
+	);
+	checkUnreachable(funcFlow.entry, funcFlow.exit, funcFlow.revert, funcFlow.transactionReturn);
+}
+
+bool ControlFlowAnalyzer::visit(ContractDefinition const& _contract)
+{
+	set<CallableDeclaration const*> overridden;
+
+	for (ContractDefinition const* contract: _contract.annotation().linearizedBaseContracts)
+		for (FunctionDefinition const* function: contract->definedFunctions())
+		{
+			if (overridden.count(function))
+				continue;
+
+			for (auto const* function: function->annotation().baseFunctions)
+				overridden.emplace(function);
+
+			analyze(*function, &_contract);
+		}
+
+	return true;
+}
+
+void ControlFlowAnalyzer::checkUninitializedAccess(CFGNode const* _entry, CFGNode const* _exit, bool _emptyBody, FunctionDefinition const& _function, ContractDefinition const* _contract)
 {
 	struct NodeInfo
 	{
@@ -78,6 +112,15 @@ void ControlFlowAnalyzer::checkUninitializedAccess(CFGNode const* _entry, CFGNod
 		CFGNode const* currentNode = *nodesToTraverse.begin();
 		nodesToTraverse.erase(nodesToTraverse.begin());
 
+		bool reverts = false;
+
+		for (auto const* functionCall: currentNode->functionCalls)
+			if (checkForReverts(*_contract, *functionCall))
+			{
+				reverts = true;
+				break;
+			}
+
 		auto& nodeInfo = nodeInfos[currentNode];
 		auto unassignedVariables = nodeInfo.unassignedVariablesAtEntry;
 		for (auto const& variableOccurrence: currentNode->variableOccurrences)
@@ -109,12 +152,13 @@ void ControlFlowAnalyzer::checkUninitializedAccess(CFGNode const* _entry, CFGNod
 		nodeInfo.unassignedVariablesAtExit = std::move(unassignedVariables);
 
 		// Propagate changes to all exits and queue them for traversal, if needed.
-		for (auto const& exit: currentNode->exits)
-			if (
-				auto exists = valueOrNullptr(nodeInfos, exit);
-				nodeInfos[exit].propagateFrom(nodeInfo) || !exists
-			)
-				nodesToTraverse.insert(exit);
+		if (!reverts)
+			for (auto const& exit: currentNode->exits)
+				if (
+					auto exists = valueOrNullptr(nodeInfos, exit);
+					nodeInfos[exit].propagateFrom(nodeInfo) || !exists
+				)
+					nodesToTraverse.insert(exit);
 	}
 
 	auto const& exitInfo = nodeInfos[_exit];
@@ -154,16 +198,26 @@ void ControlFlowAnalyzer::checkUninitializedAccess(CFGNode const* _entry, CFGNod
 					" without prior assignment, which would lead to undefined behaviour."
 				);
 			else if (!_emptyBody && variableOccurrence->declaration().name().empty())
+			{
+				if (!m_previousVariableWarnings.emplace(&varDecl).second)
+					continue;
+
 				m_errorReporter.warning(
 					6321_error,
 					variableOccurrence->declaration().location(),
-					"Unnamed return variable can remain unassigned. Add an explicit return with value to all non-reverting code paths or name the variable."
+					(
+						!_contract || _contract == _function.annotation().contract ?
+						"U" :
+						"When called using contract \"" + _contract->name() + "\" the u"
+					) +
+					"nnamed return variable can remain unassigned. Add an explicit return with value to all non-reverting code paths or name the variable."
 				);
+			}
 		}
 	}
 }
 
-void ControlFlowAnalyzer::checkUnreachable(CFGNode const* _entry, CFGNode const* _exit, CFGNode const* _revert, CFGNode const* _transactionReturn) const
+void ControlFlowAnalyzer::checkUnreachable(CFGNode const* _entry, CFGNode const* _exit, CFGNode const* _revert, CFGNode const* _transactionReturn)
 {
 	// collect all nodes reachable from the entry point
 	std::set<CFGNode const*> reachable = util::BreadthFirstSearch<CFGNode const*>{{_entry}}.run(
@@ -191,6 +245,100 @@ void ControlFlowAnalyzer::checkUnreachable(CFGNode const* _entry, CFGNode const*
 		// Extend the location, as long as the next location overlaps (unreachable is sorted).
 		for (; it != unreachable.end() && it->start <= location.end; ++it)
 			location.end = std::max(location.end, it->end);
-		m_errorReporter.warning(5740_error, location, "Unreachable code.");
+
+		if (m_previousUnreachable.emplace(location).second)
+			m_errorReporter.warning(5740_error, location, "Unreachable code.");
 	}
+}
+
+bool ControlFlowAnalyzer::checkForReverts(ContractDefinition const& _contract, FunctionCall const& _functionCall)
+{
+	auto const& functionType = dynamic_cast<FunctionType const&>(
+		*_functionCall.expression().annotation().type
+	);
+
+	if (!functionType.hasDeclaration())
+		return false;
+
+	auto const& unresolvedFunctionDefinition =
+		dynamic_cast<FunctionDefinition const&>(functionType.declaration());
+
+	FunctionDefinition const* functionDefinition = nullptr;
+	ContractDefinition const* contractDefinition = nullptr;
+
+	SimpleASTVisitor visitor([&](ASTNode const& _node) {
+		if (auto const* memberAccess = dynamic_cast<MemberAccess const*>(&_node))
+		{
+			if (*memberAccess->annotation().requiredLookup == VirtualLookup::Super)
+			{
+				if (auto const typeType = dynamic_cast<TypeType const*>(memberAccess->expression().annotation().type))
+					if (auto const contractType = dynamic_cast<ContractType const*>(typeType->actualType()))
+					{
+						solAssert(contractType->isSuper(), "");
+						ContractDefinition const* superContract = contractType->contractDefinition().superContract(_contract);
+
+						functionDefinition =
+							&unresolvedFunctionDefinition.resolveVirtual(
+								_contract,
+								superContract
+							);
+					}
+			}
+			else
+			{
+				solAssert(*memberAccess->annotation().requiredLookup == VirtualLookup::Static, "");
+				functionDefinition = &unresolvedFunctionDefinition;
+			}
+			return false;
+		}
+		else if (auto const* identifier = dynamic_cast<Identifier const*>(&_node))
+		{
+			solAssert(*identifier->annotation().requiredLookup == VirtualLookup::Virtual, "");
+			functionDefinition = &unresolvedFunctionDefinition.resolveVirtual(_contract);
+
+			return false;
+		}
+		return true;
+	}, [](ASTNode const&){});
+
+	_functionCall.expression().accept(visitor);
+
+	solAssert(functionDefinition != nullptr, "");
+
+	if (!functionDefinition->isFree())
+		contractDefinition = functionDefinition->annotation().contract;
+
+	auto functionKey = pair{contractDefinition, functionDefinition};
+
+	if (auto reverts = m_functionReverts.find(functionKey); reverts != m_functionReverts.end())
+		return reverts->second != RevertState::NoRevert;
+
+	// Set to pending until we visited the functioncalls made by this node.
+	m_functionReverts[functionKey] = RevertState::Pending;
+
+	if (!functionDefinition->isImplemented())
+		return false;
+
+	FunctionFlow const& funcFlow = m_cfg.functionFlow(*functionDefinition, contractDefinition);
+
+	BreadthFirstSearch<CFGNode const*>{{funcFlow.entry}}.
+		run([&](CFGNode const* _node, auto&& _addChild) {
+			if (funcFlow.exit == _node)
+			{
+				m_functionReverts[functionKey] = RevertState::NoRevert;
+				return;
+			}
+
+			for (FunctionCall const* functionCall: _node->functionCalls)
+				if (checkForReverts(_contract, *functionCall))
+				{
+					m_functionReverts[functionKey] = RevertState::Reverting;
+					return;
+				}
+
+			for (auto const* exit: _node->exits)
+				_addChild(exit);
+		});
+
+	return m_functionReverts[functionKey] != RevertState::NoRevert;
 }
