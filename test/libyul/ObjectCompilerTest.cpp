@@ -53,7 +53,7 @@ TestCase::TestResult ObjectCompilerTest::run(ostream& _stream, string const& _li
 	AssemblyStack stack(
 		EVMVersion(),
 		m_wasm ? AssemblyStack::Language::Ewasm : AssemblyStack::Language::StrictAssembly,
-		m_optimize ? OptimiserSettings::full() : OptimiserSettings::minimal()
+		m_optimize ? OptimiserSettings::full() : OptimiserSettings::none()
 	);
 	if (!stack.parseAndAnalyze("source", m_source))
 	{
