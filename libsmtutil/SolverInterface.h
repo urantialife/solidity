@@ -87,7 +87,7 @@ public:
 			{"not", 1},
 			{"and", 2},
 			{"or", 2},
-			{"implies", 2},
+			{"=>", 2},
 			{"=", 2},
 			{"<", 2},
 			{"<=", 2},
@@ -127,7 +127,7 @@ public:
 	static Expression implies(Expression _a, Expression _b)
 	{
 		return Expression(
-			"implies",
+			"=>",
 			std::move(_a),
 			std::move(_b),
 			Kind::Bool
