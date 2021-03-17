@@ -1,6 +1,7 @@
 ### 0.8.5 (unreleased)
 
 Language Features:
+ * Yul: Add ``verbatim`` builtin function to inject arbitrary bytecode.
 
 
 Compiler Features:
