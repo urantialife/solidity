@@ -9,6 +9,7 @@ Language Features:
 Compiler Features:
  * Analysis: Properly detect circular references to the bytecode of other contracts across all function calls.
  * Commandline Interface: Model checker option ``--model-checker-targets`` also accepts ``outOfBounds``.
+ * EVM: Set the default EVM version to "Berlin".
  * Low-Level Inliner: Inline ordinary jumps to small blocks and jumps to small blocks that terminate.
  * SMTChecker: Deprecate ``pragma experimental SMTChecker;`` and set default model checker engine to ``none``.
  * SMTChecker: Report local variables in CHC counterexamples.
