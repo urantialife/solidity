@@ -24,7 +24,7 @@ Use ``solc --strict-assembly --optimize`` for a stand-alone Yul mode.
 You can find more details on both optimizer modules and their optimization steps below.
 
 Benefits of Optimizing Solidity Code
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+------------------------------------
 
 Overall, the optimizer tries to simplify complicated expressions, which reduces both code
 size and execution cost. It also specializes or inlines functions. Especially
@@ -32,7 +32,7 @@ function inlining is an operation that can cause much bigger code, but it is
 often done because it results in opportunities for more simplifications.
 
 Differences between Optimized and Non-Optimized Code
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------------------------------
 
 Generally, the most visible difference would be constant expressions getting evaluated.
 When it comes to the ASM output, one can also notice reduction of equivalent/duplicate
@@ -43,7 +43,7 @@ redundancies, etc. (compare the output between the flags ``--ir`` and
 ``--optimize --ir-optimized``).
 
 Optimize Runs
-~~~~~~~~~~~~~
+-------------
 
 The number of runs (``--optimize-runs``) specifies roughly how often each opcode of the
 deployed code will be executed across the life-time of the contract. A “runs” parameter
@@ -116,7 +116,7 @@ a jump in the beginning of the process:
     return 1;
 
 Simple Inlining
-~~~~~~~~~~~~~~~
+---------------
 
 Since Solidity version 0.8.2, there is another optimizer step that replaces certain
 jumps to blocks containing "simple" instructions ending with a "jump" by a copy of these instructions.
@@ -186,6 +186,7 @@ contract than not inlining. This heuristics depends on the size of the function 
 number of other references to its tag (approximating the number of calls to the function) and
 the expected number of executions of the contract (the global optimizer parameter "runs").
 
+
 Yul-Based Optimizer Module
 ==========================
 
@@ -206,8 +207,43 @@ The following transformation steps are the main components:
  - Redundant Assign Eliminator
  - Full Function Inliner
 
-Selecting optimizations
-~~~~~~~~~~~~~~~~~~~~~~~
+ Full List of Yul-Based Optimizer Steps
+ -----------------------------------------
+ 
+ - :ref:`BlockFlattener<Block Flattener>`.
+ - CircularReferencesPruner - To be documented.
+ - :ref:`CommonSubexpressionEliminator<Common Subexpression Eliminator>`.
+ - ConditionalSimplifier - To be documented.
+ - ConditionalUnsimplifier - To be documented.
+ - ControlFlowSimplifier - To be documented.
+ - DeadCodeEliminator - To be documented.
+ - :ref:`EquivalentFunctionCombiner<Equivalent Function Combiner>`.
+ - ExpressionInliner - To be documented.
+ - :ref:`ExpressionJoiner<Expression Joiner>`.
+ - :ref:`ExpressionSimplifier<Expression Simplifier>`.
+ - :ref:`ExpressionSplitter<Expression Splitter>`.
+ - :ref:`ForLoopConditionIntoBody<For Loop Condition Into Body>`.
+ - ForLoopConditionOutOfBody - To be documented.
+ - :ref:`ForLoopInitRewriter<For Loop Init Rewriter>`.
+ - :ref:`FullInliner<Full Function Inliner>`.
+ - :ref:`FunctionGrouper<Fuction Grouper>`.
+ - :ref:`FunctionHoister<Function Hoister>`.
+ - FunctionSpecializer - To be documented.
+ - LiteralRematerialiser - To be documented.
+ - LoadResolver - To be documented.
+ - LoopInvariantCodeMotion - To be documented.
+ - :ref:`RedundantAssignEliminator<Redundant Assign Eliminator>`.
+ - ReasoningBasedSimplifier - To be documented.
+ - :ref:`Rematerialiser<Rematerialiser>`.
+ - :ref:`SSAReverser<SSA Reverser>`.
+ - :ref:`SSATransform<SSA Transform>`.
+ - :ref:`StructuralSimplifier<Structural Simplifier>`.
+ - UnusedFunctionParameterPruner - To be documented.
+ - :ref:`UnusedPruner<Unused Pruner>`.
+ - VarDeclInitializer - To be documented.
+
+Selecting Optimizations
+-----------------------
 
 By default the optimizer applies its predefined sequence of optimization steps to
 the generated assembly. You can override this sequence and supply your own using
@@ -220,14 +256,14 @@ solc --optimize --ir-optimized --yul-optimizations 'dhfoD[xarrscLMcCTU]uljmul'
 Available abbreviations are listed in the `Yul optimizer docs </docs/yul.rst#optimization-step-sequence>`_.
 
 Preprocessing
-~~~~~~~~~~~~~
+-------------
 
 The preprocessing components perform transformations to get the program
 into a certain normal form that is easier to work with. This normal
 form is kept during the rest of the optimization process.
 
 Disambiguator
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 The disambiguator takes an AST and returns a fresh copy where all identifiers have
 names unique to the input AST. This is a prerequisite for all other optimizer stages.
@@ -238,7 +274,7 @@ All subsequent stages have the property that all names stay unique. This means i
 a new identifier needs to be introduced, a new unique name is generated.
 
 Function Hoister
-~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^
 
 The function hoister moves all function definitions to the end of the topmost block. This is
 a semantically equivalent transformation as long as it is performed after the
@@ -249,7 +285,7 @@ The benefit of this stage is that function definitions can be looked up more eas
 and functions can be optimized in isolation without having to traverse the AST.
 
 Function Grouper
-~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^
 
 The function grouper has to be applied after the disambiguator and the function hoister.
 Its effect is that all topmost elements that are not function definitions are moved
@@ -264,10 +300,11 @@ and F is a list of function definitions such that no function contains a functio
 
 The benefit of this stage is that we always know where the list of function begins.
 
-### For Loop Condition Into Body
+For Loop Condition Into Body
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This transformation moves the iteration condition of a for-loop into loop body.
-We need this transformation because [expression splitter](#expression-splitter) won't
+We need this transformation because :ref:`expression splitter<Expression Splitter>` won't
 apply to iteration condition expressions (the `C` in the following example).
 
     for { Init... } C { Post... } {
@@ -282,7 +319,7 @@ is transformed to
     }
 
 For Loop Init Rewriter
-~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^
 
 This transformation moves the initialization part of a for-loop to before
 the loop:
@@ -304,7 +341,7 @@ This eases the rest of the optimization process because we can ignore
 the complicated scoping rules of the for loop initialisation block.
 
 Pseudo-SSA Transformation
-~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------
 
 The purpose of this components is to get the program into a longer form,
 so that other components can more easily work with it. The final representation
@@ -367,7 +404,7 @@ there are optimizer steps that undo these changes and make the code more
 compact again at the end.
 
 Expression Splitter
-~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 The expression splitter turns expressions like ``add(mload(x), mul(mload(y), 0x20))``
 into a sequence of declarations of unique variables that are assigned sub-expressions
@@ -387,7 +424,7 @@ Note that this transformation does not change the order of opcodes or function c
 
 It is not applied to loop conditions, because the loop control flow does not allow
 this "outlining" of the inner expressions in all cases. We can sidestep this limitation by applying
-[for loop condition into body](#for-loop-condition-into-body) to move the iteration condition into loop body.
+:ref:`for loop condition into body<For Loop Condition Into Body>` to move the iteration condition into loop body.
 
 The final program should be in a form such that (with the exception of loop conditions)
 function calls cannot appear nested inside expressions
@@ -399,7 +436,7 @@ to replace individual parts of expressions or re-organize the "expression tree".
 The drawback is that such code is much harder to read for humans.
 
 SSA Transform
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 This stage tries to replace repeated assignments to
 existing variables by declarations of new variables as much as
@@ -453,7 +490,7 @@ On the other hand, the Common Subexpression Eliminator could be more efficient i
 SSA transform.
 
 Redundant Assign Eliminator
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The SSA transform always generates an assignment of the form ``a := a_i``, even though
 these might be unnecessary in many cases, like the following example:
@@ -555,10 +592,10 @@ This step is usually run right after the SSA transform to complete
 the generation of the pseudo-SSA.
 
 Tools
-~~~~~
+-----
 
 Movability
-~~~~~~~~~~
+^^^^^^^^^^
 
 Movability is a property of an expression. It roughly means that the expression
 is side-effect free and its evaluation only depends on the values of variables
@@ -571,7 +608,7 @@ The following parts make an expression non-movable:
  - opcodes that depend on the current PC, memory size or returndata size
 
 Dataflow Analyzer
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 The Dataflow Analyzer is not an optimizer step itself but is used as a tool
 by other components. While traversing the AST, it tracks the current value of
@@ -587,13 +624,14 @@ in any of the control-flow paths. For instance, upon entering a
 for loop, all variables are cleared that will be assigned during the
 body or the post block.
 
-**Expression-Scale Simplifications**
+Expression-Scale Simplifications
+--------------------------------
 
 These simplification passes change expressions and replace them by equivalent
 and hopefully simpler expressions.
 
 Common Subexpression Eliminator
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This step uses the Dataflow Analyzer and replaces subexpressions that
 syntactically match the current value of a variable by a reference to
@@ -618,7 +656,7 @@ The expression simplifier will be able to perform better replacements
 if the common subexpression eliminator was run right before it.
 
 Expression Simplifier
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 The Expression Simplifier uses the Dataflow Analyzer and makes use
 of a list of equivalence transforms on expressions like ``X + 0 -> X``
@@ -636,10 +674,10 @@ value might not be, the Expression Simplifier is again more powerful
 in split or pseudo-SSA form.
 
 Statement-Scale Simplifications
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------------
 
 Unused Pruner
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 This step removes the definitions of all functions that are never referenced.
 
@@ -650,7 +688,7 @@ but its value is discarded.
 All movable expression statements (expressions that are not assigned) are removed.
 
 Structural Simplifier
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 This is a general step that performs various kinds of simplifications on
 a structural level:
@@ -665,7 +703,8 @@ a structural level:
 
 This component uses the Dataflow Analyzer.
 
-### Equivalent Function Combiner
+Equivalent Function Combiner
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If two functions are syntactically equivalent, while allowing variable
 renaming but not any re-ordering, then any reference to one of the
@@ -673,7 +712,8 @@ functions is replaced by the other.
 
 The actual removal of the function is performed by the Unused Pruner.
 
-### Block Flattener
+Block Flattener
+^^^^^^^^^^^^^^^
 
 This stage eliminates nested blocks by inserting the statement in the
 inner block at the appropriate place in the outer block:
@@ -698,10 +738,10 @@ As long as the code is disambiguated, this does not cause a problem because
 the scopes of variables can only grow.
 
 Function Inlining
-~~~~~~~~~~~~~~~~~
+-----------------
 
 Functional Inliner
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 The functional inliner performs restricted function inlining. In particular,
 the result of this inlining is always a single expression. This can
@@ -713,7 +753,7 @@ function call arguments to be duplicated, removed or re-ordered, they have
 to be movable.
 
 Full Function Inliner
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 The Full Function Inliner replaces certain calls of certain functions
 by the function's body. This is not very helpful in most cases, because
@@ -740,7 +780,7 @@ results in heavy gains, the specialized function is kept,
 otherwise the original function is used instead.
 
 Cleanup
-~~~~~~~
+-------
 
 The cleanup is performed at the end of the optimizer run. It tries
 to combine split expressions into deeply nested ones again and also
@@ -748,7 +788,7 @@ improves the "compilability" for stack machines by eliminating
 variables as much as possible.
 
 Expression Joiner
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 This is the opposite operation of the expression splitter. It turns a sequence of
 variable declarations that have exactly one reference into a complex expression.
@@ -771,7 +811,7 @@ transformed to ``let y := mul(add(0, 2), 3)``, even though the ``add`` opcode
 would be executed after the evaluation of the literal ``3``.
 
 SSA Reverser
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 This is a tiny step that helps in reversing the effects of the SSA transform
 if it is combined with the Common Subexpression Eliminator and the
@@ -809,7 +849,7 @@ eliminate the variable ``a_1`` altogether and thus fully reverse the
 SSA transform.
 
 Stack Compressor
-~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^
 
 One problem that makes code generation for the Ethereum Virtual Machine
 hard is the fact that there is a hard limit of 16 slots for reaching
@@ -825,7 +865,7 @@ variables sorted by the cost of their values.
 On failure, this procedure is repeated multiple times.
 
 Rematerialiser
-~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^
 
 The rematerialisation stage tries to replace variable references by the expression that
 was last assigned to the variable. This is of course only beneficial if this expression
@@ -841,10 +881,10 @@ If the value is very cheap or the variable was explicitly requested to be elimin
 the variable reference is replaced by its current value.
 
 WebAssembly specific
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 
 Main Function
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 Changes the topmost block to be a function with a specific name ("main") which has no
 inputs nor outputs.
