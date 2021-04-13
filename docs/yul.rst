@@ -1077,7 +1077,7 @@ Yul Optimizer
 The Yul optimizer operates on Yul code and uses the same language for input, output and
 intermediate states. This allows for easy debugging and verification of the optimizer.
 
-Please refer to the general `optimizer documentation <https://github.com/ethereum/solidity/blob/develop/docs/internals/optimizer.rst>`_
+Please refer to the general :ref:`optimizer documentation <optimizer>`
 for more details about the different optimization stages and how to use the optimizer.
 
 If you want to use Solidity in stand-alone Yul mode, you activate the optimizer using ``--optimize``:

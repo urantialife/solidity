@@ -1,4 +1,5 @@
 .. index:: optimizer, optimiser, common subexpression elimination, constant propagation
+.. _optimizer:
 
 *************
 The Optimizer
@@ -24,15 +25,16 @@ Use ``solc --strict-assembly --optimize`` for a stand-alone Yul mode.
 You can find more details on both optimizer modules and their optimization steps below.
 
 Benefits of Optimizing Solidity Code
-------------------------------------
+====================================
 
 Overall, the optimizer tries to simplify complicated expressions, which reduces both code
 size and execution cost. It also specializes or inlines functions. Especially
 function inlining is an operation that can cause much bigger code, but it is
 often done because it results in opportunities for more simplifications.
 
+
 Differences between Optimized and Non-Optimized Code
-----------------------------------------------------
+====================================================
 
 Generally, the most visible difference would be constant expressions getting evaluated.
 When it comes to the ASM output, one can also notice reduction of equivalent/duplicate
@@ -43,7 +45,7 @@ redundancies, etc. (compare the output between the flags ``--ir`` and
 ``--optimize --ir-optimized``).
 
 Optimize Runs
--------------
+=============
 
 The number of runs (``--optimize-runs``) specifies roughly how often each opcode of the
 deployed code will be executed across the life-time of the contract. A “runs” parameter
@@ -207,39 +209,42 @@ The following transformation steps are the main components:
  - Redundant Assign Eliminator
  - Full Function Inliner
 
- Full List of Yul-Based Optimizer Steps
- -----------------------------------------
+Optimizer Steps
+---------------
  
- - :ref:`BlockFlattener<Block Flattener>`.
+This is a list of all steps the Yul-based optimizer sorted alphabetically. You can find more information
+on the individual steps and their sequence below.
+
+ - :ref:`block-flattener`.
  - CircularReferencesPruner - To be documented.
- - :ref:`CommonSubexpressionEliminator<Common Subexpression Eliminator>`.
+ - :ref:`common-subexpression-eliminator`.
  - ConditionalSimplifier - To be documented.
  - ConditionalUnsimplifier - To be documented.
  - ControlFlowSimplifier - To be documented.
  - DeadCodeEliminator - To be documented.
- - :ref:`EquivalentFunctionCombiner<Equivalent Function Combiner>`.
+ - :ref:`equivalent-function-combiner`.
  - ExpressionInliner - To be documented.
- - :ref:`ExpressionJoiner<Expression Joiner>`.
- - :ref:`ExpressionSimplifier<Expression Simplifier>`.
- - :ref:`ExpressionSplitter<Expression Splitter>`.
- - :ref:`ForLoopConditionIntoBody<For Loop Condition Into Body>`.
+ - :ref:`expression-joiner`.
+ - :ref:`expression-simplifier`.
+ - :ref:`expression-splitter`.
+ - :ref:`for-loop-condition-into-body`.
  - ForLoopConditionOutOfBody - To be documented.
- - :ref:`ForLoopInitRewriter<For Loop Init Rewriter>`.
- - :ref:`FullInliner<Full Function Inliner>`.
- - :ref:`FunctionGrouper<Fuction Grouper>`.
- - :ref:`FunctionHoister<Function Hoister>`.
+ - :ref:`for-loop-init-rewriter`.
+ - :ref:`functional-inliner`.
+ - :ref:`function-grouper`.
+ - :ref:`function-hoister`.
  - FunctionSpecializer - To be documented.
  - LiteralRematerialiser - To be documented.
  - LoadResolver - To be documented.
  - LoopInvariantCodeMotion - To be documented.
- - :ref:`RedundantAssignEliminator<Redundant Assign Eliminator>`.
+ - :ref:`redundant-assign-eliminator`.
  - ReasoningBasedSimplifier - To be documented.
- - :ref:`Rematerialiser<Rematerialiser>`.
- - :ref:`SSAReverser<SSA Reverser>`.
- - :ref:`SSATransform<SSA Transform>`.
- - :ref:`StructuralSimplifier<Structural Simplifier>`.
+ - :ref:`rematerialiser`.
+ - :ref:`SSA-reverser`.
+ - :ref:`SSA-transform`.
+ - :ref:`structural-simplifier`.
  - UnusedFunctionParameterPruner - To be documented.
- - :ref:`UnusedPruner<Unused Pruner>`.
+ - :ref:`unused-pruner`.
  - VarDeclInitializer - To be documented.
 
 Selecting Optimizations
@@ -247,13 +252,14 @@ Selecting Optimizations
 
 By default the optimizer applies its predefined sequence of optimization steps to
 the generated assembly. You can override this sequence and supply your own using
-the `--yul-optimizations` option:
+the ``--yul-optimizations`` option:
 
-``` bash
-solc --optimize --ir-optimized --yul-optimizations 'dhfoD[xarrscLMcCTU]uljmul'
-```
+.. code-block:: text
 
-Available abbreviations are listed in the `Yul optimizer docs </docs/yul.rst#optimization-step-sequence>`_.
+    bash
+    solc --optimize --ir-optimized --yul-optimizations 'dhfoD[xarrscLMcCTU]uljmul'
+
+Available abbreviations are listed in the `Yul optimizer docs <yul.rst#optimization-step-sequence>`_.
 
 Preprocessing
 -------------
@@ -261,6 +267,8 @@ Preprocessing
 The preprocessing components perform transformations to get the program
 into a certain normal form that is easier to work with. This normal
 form is kept during the rest of the optimization process.
+
+.. _disambiguator:
 
 Disambiguator
 ^^^^^^^^^^^^^
@@ -273,8 +281,10 @@ and we can basically ignore the result of the analysis phase.
 All subsequent stages have the property that all names stay unique. This means if
 a new identifier needs to be introduced, a new unique name is generated.
 
-Function Hoister
-^^^^^^^^^^^^^^^^
+.. _function-hoister:
+
+FunctionHoister
+^^^^^^^^^^^^^^^
 
 The function hoister moves all function definitions to the end of the topmost block. This is
 a semantically equivalent transformation as long as it is performed after the
@@ -284,8 +294,10 @@ its visibility and it is impossible to reference variables defined in a differen
 The benefit of this stage is that function definitions can be looked up more easily
 and functions can be optimized in isolation without having to traverse the AST.
 
-Function Grouper
-^^^^^^^^^^^^^^^^
+.. _function-grouper:
+
+FunctionGrouper
+^^^^^^^^^^^^^^^
 
 The function grouper has to be applied after the disambiguator and the function hoister.
 Its effect is that all topmost elements that are not function definitions are moved
@@ -293,42 +305,56 @@ into a single block which is the first statement of the root block.
 
 After this step, a program has the following normal form:
 
+.. code-block:: text
+
 	{ I F... }
 
-Where I is a (potentially empty) block that does not contain any function definitions (not even recursively)
-and F is a list of function definitions such that no function contains a function definition.
+Where ``I`` is a (potentially empty) block that does not contain any function definitions (not even recursively)
+and ``F`` is a list of function definitions such that no function contains a function definition.
 
 The benefit of this stage is that we always know where the list of function begins.
 
-For Loop Condition Into Body
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _for-loop-condition-into-body:
+
+ForLoopConditionIntoBody
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 This transformation moves the iteration condition of a for-loop into loop body.
-We need this transformation because :ref:`expression splitter<Expression Splitter>` won't
-apply to iteration condition expressions (the `C` in the following example).
+We need this transformation because :ref:`expression-splitter` won't
+apply to iteration condition expressions (the ``C`` in the following example).
+
+.. code-block:: text
 
     for { Init... } C { Post... } {
         Body...
     }
 
 is transformed to
+
+.. code-block:: text
 
     for { Init... } 1 { Post... } {
         if iszero(C) { break }
         Body...
     }
 
-For Loop Init Rewriter
-^^^^^^^^^^^^^^^^^^^^^^
+.. _for-loop-init-rewriter:
+
+ForLoopInitRewriter
+^^^^^^^^^^^^^^^^^^^
 
 This transformation moves the initialization part of a for-loop to before
 the loop:
+
+.. code-block:: text
 
     for { Init... } C { Post... } {
         Body...
     }
 
 is transformed to
+
+.. code-block:: text
 
     {
         Init...
@@ -354,6 +380,8 @@ so that the following expressions still only need to reference SSA variables.
 
 An example transformation is the following:
 
+::
+
     {
         let a := calldataload(0)
         let b := calldataload(0x20)
@@ -364,8 +392,11 @@ An example transformation is the following:
         sstore(a, add(b, 0x20))
     }
 
+
 When all the following transformation steps are applied, the program will look
 as follows:
+
+::
 
     {
         let _1 := 0
@@ -403,8 +434,10 @@ longer. The hope is that this code will be easier to work with and furthermore,
 there are optimizer steps that undo these changes and make the code more
 compact again at the end.
 
-Expression Splitter
-^^^^^^^^^^^^^^^^^^^
+.. _expression-splitter:
+
+ExpressionSplitter
+^^^^^^^^^^^^^^^^^^
 
 The expression splitter turns expressions like ``add(mload(x), mul(mload(y), 0x20))``
 into a sequence of declarations of unique variables that are assigned sub-expressions
@@ -412,6 +445,8 @@ of that expression so that each function call has only variables or literals
 as arguments.
 
 The above would be transformed into
+
+::
 
     {
         let _1 := mload(y)
@@ -424,7 +459,7 @@ Note that this transformation does not change the order of opcodes or function c
 
 It is not applied to loop conditions, because the loop control flow does not allow
 this "outlining" of the inner expressions in all cases. We can sidestep this limitation by applying
-:ref:`for loop condition into body<For Loop Condition Into Body>` to move the iteration condition into loop body.
+:ref:`for-loop-condition-into-body` to move the iteration condition into loop body.
 
 The final program should be in a form such that (with the exception of loop conditions)
 function calls cannot appear nested inside expressions
@@ -435,8 +470,10 @@ and it is also easier to perform function call inlining. Furthermore, it is simp
 to replace individual parts of expressions or re-organize the "expression tree".
 The drawback is that such code is much harder to read for humans.
 
-SSA Transform
-^^^^^^^^^^^^^
+.. _SSA-transform:
+
+SSATransform
+^^^^^^^^^^^^
 
 This stage tries to replace repeated assignments to
 existing variables by declarations of new variables as much as
@@ -446,6 +483,8 @@ reassigned variables are replaced by the newly declared variables.
 
 Example:
 
+::
+
     {
         let a := 1
         mstore(a, 2)
@@ -453,6 +492,8 @@ Example:
     }
 
 is transformed to
+
+::
 
     {
         let a_1 := 1
@@ -467,9 +508,9 @@ Exact semantics:
 For any variable ``a`` that is assigned to somewhere in the code
 (variables that are declared with value and never re-assigned
 are not modified) perform the following transforms:
+
  - replace ``let a := v`` by ``let a_i := v   let a := a_i``
- - replace ``a := v`` by ``let a_i := v   a := a_i``
-where ``i`` is a number such that ``a_i`` is yet unused.
+ - replace ``a := v`` by ``let a_i := v   a := a_i`` where ``i`` is a number such that ``a_i`` is yet unused.
 
 Furthermore, always record the current value of ``i`` used for ``a`` and replace each
 reference to ``a`` by ``a_i``.
@@ -489,11 +530,15 @@ are run right before it, because then it does not generate excessive amounts of 
 On the other hand, the Common Subexpression Eliminator could be more efficient if run after the
 SSA transform.
 
-Redundant Assign Eliminator
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _redundant-assign-eliminator:
+
+RedundantAssignEliminator
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The SSA transform always generates an assignment of the form ``a := a_i``, even though
 these might be unnecessary in many cases, like the following example:
+
+::
 
     {
         let a := 1
@@ -503,6 +548,8 @@ these might be unnecessary in many cases, like the following example:
     }
 
 The SSA transform converts this snippet to the following:
+
+::
 
     {
         let a_1 := 1
@@ -517,6 +564,8 @@ The SSA transform converts this snippet to the following:
 The Redundant Assign Eliminator removes all the three assignments to ``a``, because
 the value of ``a`` is not used and thus turn this
 snippet into strict SSA form:
+
+::
 
     {
         let a_1 := 1
@@ -561,18 +610,22 @@ Simulating a third run or even more is unnecessary, which can be seen as follows
 
 A state of an assignment at the beginning of the iteration will deterministically
 result in a state of that assignment at the end of the iteration. Let this
-state mapping function be called `f`. The combination of the three different
-states `unused`, `undecided` and `used` as explained above is the `max`
-operation where `unused = 0`, `undecided = 1` and `used = 2`.
+state mapping function be called ``f``. The combination of the three different
+states ``unused``, ``undecided`` and ``used`` as explained above is the ``max``
+operation where ``unused = 0``, ``undecided = 1`` and ``used = 2``.
 
 The proper way would be to compute
 
+::
+
     max(s, f(s), f(f(s)), f(f(f(s))), ...)
 
-as state after the loop. Since `f` just has a range of three different values,
+as state after the loop. Since ``f`` just has a range of three different values,
 iterating it has to reach a cycle after at most three iterations,
-and thus `f(f(f(s)))` has to equal one of `s`, `f(s)`, or `f(f(s))`
+and thus ``f(f(f(s)))`` has to equal one of ``s``, ``f(s)``, or ``f(f(s))``
 and thus
+
+::
 
     max(s, f(s), f(f(s))) = max(s, f(s), f(f(s)), f(f(f(s))), ...).
 
@@ -607,8 +660,8 @@ The following parts make an expression non-movable:
  - opcodes that read or write memory, storage or external state information
  - opcodes that depend on the current PC, memory size or returndata size
 
-Dataflow Analyzer
-^^^^^^^^^^^^^^^^^
+DataflowAnalyzer
+^^^^^^^^^^^^^^^^
 
 The Dataflow Analyzer is not an optimizer step itself but is used as a tool
 by other components. While traversing the AST, it tracks the current value of
@@ -630,8 +683,10 @@ Expression-Scale Simplifications
 These simplification passes change expressions and replace them by equivalent
 and hopefully simpler expressions.
 
-Common Subexpression Eliminator
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _common-subexpression-eliminator:
+
+CommonSubexpressionEliminator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This step uses the Dataflow Analyzer and replaces subexpressions that
 syntactically match the current value of a variable by a reference to
@@ -655,6 +710,8 @@ have a higher chance of expressions to be replaceable.
 The expression simplifier will be able to perform better replacements
 if the common subexpression eliminator was run right before it.
 
+.. _expression-simplifier:
+
 Expression Simplifier
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -676,8 +733,10 @@ in split or pseudo-SSA form.
 Statement-Scale Simplifications
 -------------------------------
 
-Unused Pruner
-^^^^^^^^^^^^^
+.. _unused-pruner:
+
+UnusedPruner
+^^^^^^^^^^^^
 
 This step removes the definitions of all functions that are never referenced.
 
@@ -687,8 +746,10 @@ but its value is discarded.
 
 All movable expression statements (expressions that are not assigned) are removed.
 
-Structural Simplifier
-^^^^^^^^^^^^^^^^^^^^^
+.. _structural-simplifier:
+
+StructuralSimplifier
+^^^^^^^^^^^^^^^^^^^^
 
 This is a general step that performs various kinds of simplifications on
 a structural level:
@@ -703,8 +764,10 @@ a structural level:
 
 This component uses the Dataflow Analyzer.
 
-Equivalent Function Combiner
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _equivalent-function-combiner:
+
+EquivalentFunctionCombiner
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If two functions are syntactically equivalent, while allowing variable
 renaming but not any re-ordering, then any reference to one of the
@@ -712,11 +775,15 @@ functions is replaced by the other.
 
 The actual removal of the function is performed by the Unused Pruner.
 
-Block Flattener
-^^^^^^^^^^^^^^^
+.. _block-flattener:
+
+BlockFlattener
+^^^^^^^^^^^^^^
 
 This stage eliminates nested blocks by inserting the statement in the
 inner block at the appropriate place in the outer block:
+
+::
 
     {
         let x := 2
@@ -727,6 +794,8 @@ inner block at the appropriate place in the outer block:
     }
 
 is transformed to
+
+::
 
     {
         let x := 2
@@ -740,8 +809,10 @@ the scopes of variables can only grow.
 Function Inlining
 -----------------
 
-Functional Inliner
-^^^^^^^^^^^^^^^^^^
+.. _functional-inliner:
+
+FunctionalInliner
+^^^^^^^^^^^^^^^^^
 
 The functional inliner performs restricted function inlining. In particular,
 the result of this inlining is always a single expression. This can
@@ -752,8 +823,10 @@ by ``E``, substituting the function call arguments. Because this can cause the
 function call arguments to be duplicated, removed or re-ordered, they have
 to be movable.
 
-Full Function Inliner
-^^^^^^^^^^^^^^^^^^^^^
+.. _full-function-inliner:
+
+FullFunctionInliner
+^^^^^^^^^^^^^^^^^^^
 
 The Full Function Inliner replaces certain calls of certain functions
 by the function's body. This is not very helpful in most cases, because
@@ -787,8 +860,10 @@ to combine split expressions into deeply nested ones again and also
 improves the "compilability" for stack machines by eliminating
 variables as much as possible.
 
-Expression Joiner
-^^^^^^^^^^^^^^^^^
+.. _expression-joiner:
+
+ExpressionJoiner
+^^^^^^^^^^^^^^^^
 
 This is the opposite operation of the expression splitter. It turns a sequence of
 variable declarations that have exactly one reference into a complex expression.
@@ -810,8 +885,10 @@ Because of that, the snippet ``let x := add(0, 2) let y := mul(x, 3)`` is
 transformed to ``let y := mul(add(0, 2), 3)``, even though the ``add`` opcode
 would be executed after the evaluation of the literal ``3``.
 
-SSA Reverser
-^^^^^^^^^^^^
+.. _SSA-reverser:
+
+SSAReverser
+^^^^^^^^^^^
 
 This is a tiny step that helps in reversing the effects of the SSA transform
 if it is combined with the Common Subexpression Eliminator and the
@@ -824,10 +901,14 @@ fresh variable declarations.
 
 The SSA transform rewrites
 
+::
+
     a := E
     mstore(a, 1)
 
 to
+
+::
 
     let a_1 := E
     a := a_1
@@ -837,6 +918,8 @@ The problem is that instead of ``a``, the variable ``a_1`` is used
 whenever ``a`` was referenced. The SSA transform changes statements
 of this form by just swapping out the declaration and the assignment. The above
 snippet is turned into
+
+::
 
     a := E
     let a_1 := a
@@ -848,8 +931,10 @@ by ``a`` (until ``a`` is re-assigned). The Unused Pruner will then
 eliminate the variable ``a_1`` altogether and thus fully reverse the
 SSA transform.
 
-Stack Compressor
-^^^^^^^^^^^^^^^^
+.. _stack-compressor:
+
+StackCompressor
+^^^^^^^^^^^^^^^
 
 One problem that makes code generation for the Ethereum Virtual Machine
 hard is the fact that there is a hard limit of 16 slots for reaching
@@ -863,6 +948,8 @@ is called with a special request to aggressively eliminate specific
 variables sorted by the cost of their values.
 
 On failure, this procedure is repeated multiple times.
+
+.. _rematerialiser:
 
 Rematerialiser
 ^^^^^^^^^^^^^^
@@ -883,8 +970,8 @@ the variable reference is replaced by its current value.
 WebAssembly specific
 --------------------
 
-Main Function
-^^^^^^^^^^^^^
+MainFunction
+^^^^^^^^^^^^
 
 Changes the topmost block to be a function with a specific name ("main") which has no
 inputs nor outputs.
