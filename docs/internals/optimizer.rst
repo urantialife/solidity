@@ -211,7 +211,7 @@ The following transformation steps are the main components:
 
 Optimizer Steps
 ---------------
- 
+
 This is a list of all steps the Yul-based optimizer sorted alphabetically. You can find more information
 on the individual steps and their sequence below.
 
