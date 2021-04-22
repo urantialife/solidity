@@ -9,42 +9,13 @@
 // ====
 // stackOptimization: true
 // ----
-// PUSH1 0x5
 // PUSH1 0x6
+// PUSH1 0x5
+// MSTORE
+// PUSH1 0x0
 // PUSH1 0x7
 // DUP2
-// DUP4
-// MSTORE
-// PUSH1 0x1B
-// JUMP
-// JUMPDEST
-// PUSH1 0x0
-// PUSH1 0x0
-// PUSH1 0x0
-// PUSH1 0x0
-// JUMPDEST
 // SWAP1
-// SWAP2
-// SWAP3
-// SWAP4
-// JUMP
-// JUMPDEST
-// PUSH1 0x21
-// PUSH1 0xC
-// JUMP
-// JUMPDEST
-// SWAP6
-// POP
-// SWAP4
-// POP
-// POP
+// MSTORE
 // DUP1
-// DUP3
 // MSTORE
-// POP
-// POP
-// DUP2
-// DUP2
-// MSTORE
-// POP
-// POP

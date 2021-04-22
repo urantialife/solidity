@@ -2,11 +2,6 @@
 // ====
 // stackOptimization: true
 // ----
-// PUSH1 0x1
 // PUSH1 0x4
 // PUSH1 0x3
 // MSTORE
-// DUP1
-// MLOAD
-// POP
-// POP

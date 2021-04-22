@@ -10,8 +10,4 @@
 // ----
 // PUSH1 0x5
 // DUP1
-// DUP1
-// DUP2
 // SSTORE
-// POP
-// POP

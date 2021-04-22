@@ -6,13 +6,6 @@
 // ====
 // stackOptimization: true
 // ----
-// PUSH1 0x5
-// PUSH1 0x2
-// DUP2
-// ADD
-// SWAP1
-// POP
+// PUSH1 0x7
 // DUP1
-// DUP2
 // SSTORE
-// POP
